@@ -84,6 +84,31 @@ app.post('/api/action',auth,async(req,res)=>{
 app.post('/api/stars/invoice',auth,async(req,res)=>{
   res.status(501).json({error:'Платежи Stars подключаются после настройки BOT_TOKEN и Telegram webhook.'});
 });
+async function configureTelegramMenu() {
+  if (!process.env.BOT_TOKEN) {
+    console.warn('BOT_TOKEN is not configured; Telegram menu button was not set');
+    return;
+  }
+  const url = process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || 'https://koszaka-rpg.onrender.com';
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/setChatMenuButton`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        menu_button: {
+          type: 'web_app',
+          text: 'Играть',
+          web_app: { url }
+        }
+      })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.description || 'Telegram API error');
+    console.log('Telegram game menu button is ready');
+  } catch (error) {
+    console.error('Telegram menu setup failed:', error.message);
+  }
+}
 const port=process.env.PORT||3000;
 async function start() {
   if (pool) {
@@ -111,6 +136,7 @@ async function start() {
   } else {
     console.warn('DATABASE_URL is not configured; game API is in setup mode');
   }
+  await configureTelegramMenu();
   app.listen(port,()=>console.log(`KOSZAKA RPG listening on ${port}`));
 }
 start().catch(error=>{console.error('Startup failed:',error);process.exit(1);});
