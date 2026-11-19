@@ -42,16 +42,25 @@ async function ensurePlayer(user) {
 app.get('/api/health',(_,res)=>res.json({ok:true,service:'KOSZAKA RPG'}));
 
 const shopItems=[
- {id:'pink_collar',name:'Розовый ошейник',emoji:'🎀',slot:'accessory',price:60},
- {id:'royal_crown',name:'Королевская корона',emoji:'👑',slot:'accessory',price:120},
- {id:'star_bow',name:'Бантик со звездой',emoji:'🌟',slot:'accessory',price:80},
- {id:'cozy_bed',name:'Пушистая кроватка',emoji:'🛏️',slot:'bed',price:150},
- {id:'pink_rug',name:'Розовый ковёр',emoji:'🩷',slot:'rug',price:90},
- {id:'flower_plant',name:'Цветок в горшке',emoji:'🌺',slot:'plant',price:70}
+ {id:'pink_collar',category:'clothes',name:'Розовый ошейник',emoji:'🎀',slot:'accessory',price:60},
+ {id:'royal_crown',category:'clothes',name:'Королевская корона',emoji:'👑',slot:'accessory',price:120},
+ {id:'star_bow',category:'clothes',name:'Бантик со звездой',emoji:'🌟',slot:'accessory',price:80},
+ {id:'heart_glasses',category:'clothes',name:'Очки-сердечки',emoji:'💗',slot:'glasses',price:110},
+ {id:'pink_scarf',category:'clothes',name:'Пушистый шарфик',emoji:'🧣',slot:'neck',price:95},
+ {id:'angel_wings',category:'clothes',name:'Крылышки',emoji:'🪽',slot:'back',price:180},
+ {id:'cozy_bed',category:'room',name:'Пушистая кроватка',emoji:'🛏️',slot:'bed',price:150},
+ {id:'pink_rug',category:'room',name:'Розовый ковёр',emoji:'🩷',slot:'rug',price:90},
+ {id:'flower_plant',category:'room',name:'Цветок в горшке',emoji:'🌺',slot:'plant',price:70},
+ {id:'fish',category:'food',name:'Свежая рыбка',emoji:'🐟',price:12},
+ {id:'milk',category:'food',name:'Молочко',emoji:'🥛',price:10},
+ {id:'shrimp',category:'food',name:'Креветки',emoji:'🍤',price:18},
+ {id:'chicken',category:'food',name:'Куриное филе',emoji:'🍗',price:15},
+ {id:'cake',category:'food',name:'Кошачий тортик',emoji:'🍰',price:25},
+ {id:'treat',category:'food',name:'Вкусняшка',emoji:'🦴',price:8}
 ];
 app.get('/api/shop',auth,async(req,res)=>{
  if(!pool)return res.status(503).json({error:'База данных недоступна'});
- try{const p=await ensurePlayer(req.tgUser);res.json({items:shopItems,coins:p.coins,inventory:p.inventory||[],equipped:p.equipped||{}})}
+ try{const p=await ensurePlayer(req.tgUser);res.json({items:shopItems,coins:p.coins,inventory:p.inventory||[],equipped:p.equipped||{},foodStock:p.food_stock||{}})}
  catch(e){console.error(e);res.status(500).json({error:'Не удалось загрузить магазин'})}
 });
 app.post('/api/buy',auth,async(req,res)=>{
@@ -60,21 +69,42 @@ app.post('/api/buy',auth,async(req,res)=>{
  const c=await pool.connect();
  try{await c.query('BEGIN');let q=await c.query('SELECT * FROM players WHERE telegram_id=$1 FOR UPDATE',[String(req.tgUser.id)]);
  if(!q.rows.length){await c.query('INSERT INTO players(telegram_id,username) VALUES($1,$2)',[String(req.tgUser.id),req.tgUser.username||null]);q=await c.query('SELECT * FROM players WHERE telegram_id=$1 FOR UPDATE',[String(req.tgUser.id)])}
- const p=q.rows[0],inv=p.inventory||[];if(inv.includes(item.id)){await c.query('ROLLBACK');return res.status(409).json({error:'Этот предмет уже куплен'})}
+ const p=q.rows[0],inv=p.inventory||[];if(item.category!=='food' && inv.includes(item.id)){await c.query('ROLLBACK');return res.status(409).json({error:'Этот предмет уже куплен'})}
  if(p.coins<item.price){await c.query('ROLLBACK');return res.status(400).json({error:'Не хватает монет'})}
- const updated=await c.query("UPDATE players SET coins=coins-$2,inventory=COALESCE(inventory,'[]'::jsonb)||$3::jsonb,updated_at=NOW() WHERE telegram_id=$1 RETURNING *",[String(req.tgUser.id),item.price,JSON.stringify([item.id])]);
- await c.query('COMMIT');res.json({coins:updated.rows[0].coins,inventory:updated.rows[0].inventory,equipped:updated.rows[0].equipped||{}});
+ let updated;
+ if(item.category==='food'){
+  updated=await c.query("UPDATE players SET coins=coins-$2,food_stock=jsonb_set(COALESCE(food_stock,'{}'::jsonb),ARRAY[$3],to_jsonb(COALESCE((food_stock->>$3)::int,0)+1),true),updated_at=NOW() WHERE telegram_id=$1 RETURNING *",[String(req.tgUser.id),item.price,item.id]);
+ } else {
+  updated=await c.query("UPDATE players SET coins=coins-$2,inventory=COALESCE(inventory,'[]'::jsonb)||$3::jsonb,updated_at=NOW() WHERE telegram_id=$1 RETURNING *",[String(req.tgUser.id),item.price,JSON.stringify([item.id])]);
+ }
+ await c.query('COMMIT');res.json({coins:updated.rows[0].coins,inventory:updated.rows[0].inventory,equipped:updated.rows[0].equipped||{},foodStock:updated.rows[0].food_stock||{}});
  }catch(e){await c.query('ROLLBACK');console.error(e);res.status(500).json({error:'Покупка не прошла'})}finally{c.release()}
 });
 app.post('/api/equip',auth,async(req,res)=>{
  if(!pool)return res.status(503).json({error:'База данных недоступна'});
- const item=shopItems.find(x=>x.id===req.body.itemId);if(!item)return res.status(404).json({error:'Предмет не найден'});
+ const item=shopItems.find(x=>x.id===req.body.itemId);if(!item||item.category==='food')return res.status(404).json({error:'Предмет нельзя надеть'});
  try{const p=await ensurePlayer(req.tgUser);if(!(p.inventory||[]).includes(item.id))return res.status(403).json({error:'Сначала купи предмет'});
  const equipped={...(p.equipped||{}),[item.slot]:item.id};
  const q=await pool.query('UPDATE players SET equipped=$2::jsonb,updated_at=NOW() WHERE telegram_id=$1 RETURNING coins,inventory,equipped',[String(req.tgUser.id),JSON.stringify(equipped)]);
  res.json(q.rows[0])}catch(e){console.error(e);res.status(500).json({error:'Не удалось надеть предмет'})}
 });
 
+app.post('/api/feed',auth,async(req,res)=>{
+ if(!pool)return res.status(503).json({error:'База данных недоступна'});
+ const food=shopItems.find(x=>x.id===req.body.foodId&&x.category==='food');
+ if(!food)return res.status(400).json({error:'Выбери еду из магазина'});
+ const c=await pool.connect();
+ try{
+  await c.query('BEGIN');
+  const q=await c.query('SELECT * FROM players WHERE telegram_id=$1 FOR UPDATE',[String(req.tgUser.id)]);
+  if(!q.rows.length){await c.query('ROLLBACK');return res.status(404).json({error:'Профиль не найден'})}
+  const p=q.rows[0],stock=p.food_stock||{};
+  if((stock[food.id]||0)<1){await c.query('ROLLBACK');return res.status(400).json({error:'Эта еда закончилась. Загляни в магазин еды.'})}
+  const hunger=Math.min(100,p.hunger+({fish:24,milk:16,shrimp:30,chicken:28,cake:20,treat:12}[food.id]||20));
+  const updated=await c.query("UPDATE players SET hunger=$2,happiness=LEAST(100,happiness+5),food_stock=jsonb_set(COALESCE(food_stock,'{}'::jsonb),ARRAY[$3],to_jsonb(GREATEST(0,COALESCE((food_stock->>$3)::int,0)-1)),true),xp=xp+5,updated_at=NOW() WHERE telegram_id=$1 RETURNING *",[String(req.tgUser.id),hunger,food.id]);
+  await c.query('COMMIT');res.json(updated.rows[0]);
+ }catch(e){await c.query('ROLLBACK');console.error(e);res.status(500).json({error:'Не удалось покормить котика'})}finally{c.release()}
+});
 app.get('/api/me',auth,async(req,res)=>{
   if(!pool) return res.status(503).json({error:'DATABASE_URL ещё не настроен.'});
   try { res.json(await ensurePlayer(req.tgUser)); } catch(e){console.error(e);res.status(500).json({error:'Ошибка базы данных'});}
@@ -190,6 +220,7 @@ async function start() {
     await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS last_daily_reward DATE');
     await pool.query("ALTER TABLE players ADD COLUMN IF NOT EXISTS inventory JSONB NOT NULL DEFAULT '[]'::jsonb");
     await pool.query("ALTER TABLE players ADD COLUMN IF NOT EXISTS equipped JSONB NOT NULL DEFAULT '{}'::jsonb");
+    await pool.query("ALTER TABLE players ADD COLUMN IF NOT EXISTS food_stock JSONB NOT NULL DEFAULT '{}'::jsonb");
     await pool.query(`CREATE TABLE IF NOT EXISTS actions (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES players(telegram_id),
