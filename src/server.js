@@ -65,7 +65,7 @@ app.post(telegramWebhookPath(), async (req,res) => {
       await telegramCall('sendMessage',{
         chat_id:chatId,
         text:'🐾 Добро пожаловать в KOSZAKA RPG!\nУхаживай за котиком, играй, покупай еду и одежду, украшай свой домик.\n\nНажми кнопку ниже, чтобы начать игру 💗',
-        reply_markup:{inline_keyboard:[[{text:'🐱 Играть в KOSZAKA',web_app:{url:webAppUrl}}]]}
+        reply_markup:{inline_keyboard:[[{text:'🐱 Играть в KOSZAKA',url:webAppUrl}]]}
       });
     } else if (text) {
       await telegramCall('sendMessage',{
