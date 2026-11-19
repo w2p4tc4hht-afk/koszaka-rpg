@@ -40,6 +40,41 @@ async function ensurePlayer(user) {
   return rows[0];
 }
 app.get('/api/health',(_,res)=>res.json({ok:true,service:'KOSZAKA RPG'}));
+
+const shopItems=[
+ {id:'pink_collar',name:'Розовый ошейник',emoji:'🎀',slot:'accessory',price:60},
+ {id:'royal_crown',name:'Королевская корона',emoji:'👑',slot:'accessory',price:120},
+ {id:'star_bow',name:'Бантик со звездой',emoji:'🌟',slot:'accessory',price:80},
+ {id:'cozy_bed',name:'Пушистая кроватка',emoji:'🛏️',slot:'bed',price:150},
+ {id:'pink_rug',name:'Розовый ковёр',emoji:'🩷',slot:'rug',price:90},
+ {id:'flower_plant',name:'Цветок в горшке',emoji:'🌺',slot:'plant',price:70}
+];
+app.get('/api/shop',auth,async(req,res)=>{
+ if(!pool)return res.status(503).json({error:'База данных недоступна'});
+ try{const p=await ensurePlayer(req.tgUser);res.json({items:shopItems,coins:p.coins,inventory:p.inventory||[],equipped:p.equipped||{}})}
+ catch(e){console.error(e);res.status(500).json({error:'Не удалось загрузить магазин'})}
+});
+app.post('/api/buy',auth,async(req,res)=>{
+ if(!pool)return res.status(503).json({error:'База данных недоступна'});
+ const item=shopItems.find(x=>x.id===req.body.itemId);if(!item)return res.status(404).json({error:'Такого предмета нет'});
+ const c=await pool.connect();
+ try{await c.query('BEGIN');let q=await c.query('SELECT * FROM players WHERE telegram_id=$1 FOR UPDATE',[String(req.tgUser.id)]);
+ if(!q.rows.length){await c.query('INSERT INTO players(telegram_id,username) VALUES($1,$2)',[String(req.tgUser.id),req.tgUser.username||null]);q=await c.query('SELECT * FROM players WHERE telegram_id=$1 FOR UPDATE',[String(req.tgUser.id)])}
+ const p=q.rows[0],inv=p.inventory||[];if(inv.includes(item.id)){await c.query('ROLLBACK');return res.status(409).json({error:'Этот предмет уже куплен'})}
+ if(p.coins<item.price){await c.query('ROLLBACK');return res.status(400).json({error:'Не хватает монет'})}
+ const updated=await c.query("UPDATE players SET coins=coins-$2,inventory=COALESCE(inventory,'[]'::jsonb)||$3::jsonb,updated_at=NOW() WHERE telegram_id=$1 RETURNING *",[String(req.tgUser.id),item.price,JSON.stringify([item.id])]);
+ await c.query('COMMIT');res.json({coins:updated.rows[0].coins,inventory:updated.rows[0].inventory,equipped:updated.rows[0].equipped||{}});
+ }catch(e){await c.query('ROLLBACK');console.error(e);res.status(500).json({error:'Покупка не прошла'})}finally{c.release()}
+});
+app.post('/api/equip',auth,async(req,res)=>{
+ if(!pool)return res.status(503).json({error:'База данных недоступна'});
+ const item=shopItems.find(x=>x.id===req.body.itemId);if(!item)return res.status(404).json({error:'Предмет не найден'});
+ try{const p=await ensurePlayer(req.tgUser);if(!(p.inventory||[]).includes(item.id))return res.status(403).json({error:'Сначала купи предмет'});
+ const equipped={...(p.equipped||{}),[item.slot]:item.id};
+ const q=await pool.query('UPDATE players SET equipped=$2::jsonb,updated_at=NOW() WHERE telegram_id=$1 RETURNING coins,inventory,equipped',[String(req.tgUser.id),JSON.stringify(equipped)]);
+ res.json(q.rows[0])}catch(e){console.error(e);res.status(500).json({error:'Не удалось надеть предмет'})}
+});
+
 app.get('/api/me',auth,async(req,res)=>{
   if(!pool) return res.status(503).json({error:'DATABASE_URL ещё не настроен.'});
   try { res.json(await ensurePlayer(req.tgUser)); } catch(e){console.error(e);res.status(500).json({error:'Ошибка базы данных'});}
@@ -153,6 +188,8 @@ async function start() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS last_daily_reward DATE');
+    await pool.query("ALTER TABLE players ADD COLUMN IF NOT EXISTS inventory JSONB NOT NULL DEFAULT '[]'::jsonb");
+    await pool.query("ALTER TABLE players ADD COLUMN IF NOT EXISTS equipped JSONB NOT NULL DEFAULT '{}'::jsonb");
     await pool.query(`CREATE TABLE IF NOT EXISTS actions (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES players(telegram_id),
