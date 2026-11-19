@@ -98,7 +98,7 @@ app.post('/api/daily',auth,async(req,res)=>{
       return res.status(409).json({error:'Награда уже получена. Возвращайся завтра!'});
     }
     const updated=await client.query(
-      `UPDATE players SET coins=coins+50,xp=xp+15,last_daily_reward=CURRENT_DATE,updated_at=NOW()
+      `UPDATE players SET coins=coins+50+CASE WHEN xp+15>=100 THEN 50 ELSE 0 END,xp=CASE WHEN xp+15>=100 THEN xp+15-100 ELSE xp+15 END,level=level+CASE WHEN xp+15>=100 THEN 1 ELSE 0 END,last_daily_reward=CURRENT_DATE,updated_at=NOW()
        WHERE telegram_id=$1 RETURNING *`,[String(req.tgUser.id)]);
     await client.query('COMMIT');
     res.json(updated.rows[0]);
