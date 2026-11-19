@@ -61,7 +61,7 @@ app.post(telegramWebhookPath(), async (req,res) => {
     if (!chatId) return;
     const text=String(message.text||'').trim();
     const webAppUrl=process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || 'https://koszaka-rpg.onrender.com';
-    if (/^\\/(start|help)(\\s|$)/i.test(text)) {
+    if (text === '/start' || text.startsWith('/start ') || text === '/help') {
       await telegramCall('sendMessage',{
         chat_id:chatId,
         text:'🐾 Добро пожаловать в KOSZAKA RPG!\nУхаживай за котиком, играй, покупай еду и одежду, украшай свой домик.\n\nНажми кнопку ниже, чтобы начать игру 💗',
