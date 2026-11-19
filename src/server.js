@@ -85,4 +85,32 @@ app.post('/api/stars/invoice',auth,async(req,res)=>{
   res.status(501).json({error:'Платежи Stars подключаются после настройки BOT_TOKEN и Telegram webhook.'});
 });
 const port=process.env.PORT||3000;
-app.listen(port,()=>console.log(`KOSZAKA RPG listening on ${port}`));
+async function start() {
+  if (pool) {
+    await pool.query(`CREATE TABLE IF NOT EXISTS players (
+      telegram_id BIGINT PRIMARY KEY,
+      username TEXT,
+      pet_name TEXT NOT NULL DEFAULT 'Косик',
+      level INTEGER NOT NULL DEFAULT 1,
+      xp INTEGER NOT NULL DEFAULT 0,
+      coins INTEGER NOT NULL DEFAULT 120,
+      hunger INTEGER NOT NULL DEFAULT 80,
+      energy INTEGER NOT NULL DEFAULT 80,
+      cleanliness INTEGER NOT NULL DEFAULT 80,
+      happiness INTEGER NOT NULL DEFAULT 80,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS actions (
+      id BIGSERIAL PRIMARY KEY,
+      telegram_id BIGINT NOT NULL REFERENCES players(telegram_id),
+      action TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    console.log('Database schema is ready');
+  } else {
+    console.warn('DATABASE_URL is not configured; game API is in setup mode');
+  }
+  app.listen(port,()=>console.log(`KOSZAKA RPG listening on ${port}`));
+}
+start().catch(error=>{console.error('Startup failed:',error);process.exit(1);});
