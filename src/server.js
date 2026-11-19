@@ -152,7 +152,8 @@ async function start() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
-    await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS last_daily_reward DATE');\n    await pool.query(`CREATE TABLE IF NOT EXISTS actions (
+    await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS last_daily_reward DATE');
+    await pool.query(`CREATE TABLE IF NOT EXISTS actions (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES players(telegram_id),
       action TEXT NOT NULL,
