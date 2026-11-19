@@ -39,7 +39,45 @@ async function ensurePlayer(user) {
      RETURNING *`,[String(user.id),user.username||null]);
   return rows[0];
 }
-app.get('/api/health',(_,res)=>res.json({ok:true,service:'KOSZAKA RPG'}));
+
+// Telegram bot webhook: handles /start and opens the Mini App from chat
+function telegramWebhookPath() {
+  return '/telegram/webhook/' + crypto.createHash('sha256').update(String(process.env.BOT_TOKEN||'')).digest('hex').slice(0,32);
+}
+async function telegramCall(method, body) {
+  const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/${method}`, {
+    method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body)
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) throw new Error(result.description || `Telegram ${method} failed`);
+  return result;
+}
+app.post(telegramWebhookPath(), async (req,res) => {
+  // Acknowledge quickly so Telegram does not retry updates
+  res.sendStatus(200);
+  try {
+    const message=req.body?.message;
+    const chatId=message?.chat?.id;
+    if (!chatId) return;
+    const text=String(message.text||'').trim();
+    const webAppUrl=process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || 'https://koszaka-rpg.onrender.com';
+    if (/^\\/(start|help)(\\s|$)/i.test(text)) {
+      await telegramCall('sendMessage',{
+        chat_id:chatId,
+        text:'🐾 Добро пожаловать в KOSZAKA RPG!\nУхаживай за котиком, играй, покупай еду и одежду, украшай свой домик.\n\nНажми кнопку ниже, чтобы начать игру 💗',
+        reply_markup:{inline_keyboard:[[{text:'🐱 Играть в KOSZAKA',web_app:{url:webAppUrl}}]]}
+      });
+    } else if (text) {
+      await telegramCall('sendMessage',{
+        chat_id:chatId,
+        text:'Я игровой бот KOSZAKA 🐾\nНажми «Играть», чтобы открыть свой домик, или отправь /start.'
+      });
+    }
+  } catch(error) {
+    console.error('Telegram update handler failed:',error.message);
+  }
+});
+\napp.get('/api/health',(_,res)=>res.json({ok:true,service:'KOSZAKA RPG'}));
 
 const shopItems=[
  {id:'pink_collar',category:'clothes',name:'Розовый ошейник',emoji:'🎀',slot:'accessory',price:60},
@@ -196,6 +234,13 @@ async function configureTelegramMenu() {
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.description || 'Telegram API error');
     console.log('Telegram game menu button is ready');
+    const webhookUrl = url + telegramWebhookPath();
+    await telegramCall('setWebhook', {
+      url: webhookUrl,
+      allowed_updates: ['message'],
+      drop_pending_updates: false
+    });
+    console.log('Telegram bot webhook is ready');
   } catch (error) {
     console.error('Telegram menu setup failed:', error.message);
   }
