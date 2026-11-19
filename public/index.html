@@ -21,14 +21,24 @@ const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();const initData=tg?.ini
 const root=document.getElementById('scene');const scene=new THREE.Scene();scene.background=new THREE.Color(0xb8dce9);scene.fog=new THREE.Fog(0xb8dce9,13,25);
 const camera=new THREE.PerspectiveCamera(34,innerWidth/innerHeight,.1,100);camera.position.set(0,3.2,10.5);camera.lookAt(0,1.65,0);
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;root.appendChild(renderer.domElement);
-scene.add(new THREE.HemisphereLight(0xffffff,0x8a6a87,2.0));const sun=new THREE.DirectionalLight(0xfff1dc,3.0);sun.position.set(-4,8,6);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xffffff,0x8a6a87,1.65));const sun=new THREE.DirectionalLight(0xfff1dc,3.2);sun.position.set(-4,8,6);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-8;sun.shadow.camera.right=8;sun.shadow.camera.top=8;sun.shadow.camera.bottom=-8;sun.shadow.bias=-.00025;scene.add(sun);
 const mat=(color,roughness=.82)=>new THREE.MeshStandardMaterial({color,roughness});
 function box(w,h,d,m,x,y,z,rx=0,ry=0,rz=0){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);o.castShadow=true;o.receiveShadow=true;scene.add(o);return o}
 function sphere(x,y,z,sx,sy,sz,m,parent=scene){const o=new THREE.Mesh(new THREE.SphereGeometry(1,32,24),m);o.position.set(x,y,z);o.scale.set(sx,sy,sz);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
 function cyl(rt,rb,h,m,x,y,z,parent=scene){const o=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,24),m);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
 const wall=mat(0x9ed4e5),floor=mat(0x9a654d),white=mat(0xfff4e9),cream=mat(0xf2e4d3),black=mat(0x242633),pink=mat(0xe9a5b7),wood=mat(0x9d5838),green=mat(0x58b96a),gold=mat(0xc38b43),blue=mat(0x67b9da);
 box(12,7,.25,wall,0,3.5,-2.6);box(12,.25,10,floor,0,-.14,1);box(.25,7,10,wall,-6,3.5,1);box(.25,7,10,wall,6,3.5,1);
-// window with sky panes
+
+// Warm interior details: baseboards, floor seams, wall trim and a leafy plant
+box(12,.16,.12,cream,0,.08,-2.43);box(12,.12,.12,cream,0,6.25,-2.43);
+for(let i=-5;i<=5;i++){box(.018,.012,9.7,mat(0x704635),i,-.008,1); }
+for(let z=-3;z<6;z+=1.35)box(11.8,.012,.018,mat(0x704635),0,.002,z);
+box(2.25,.10,.10,wood,-3.5,5.35,-2.22);box(2.25,.10,.10,wood,-3.5,2.92,-2.22);
+box(.12,2.5,.10,wood,-4.62,4.1,-2.22);box(.12,2.5,.10,wood,-2.38,4.1,-2.22);
+for(const x of [-4.95,-4.72]){const curtain=box(.18,2.8,.12,mat(0xf3a8c6),x,4.05,-2.05);curtain.rotation.z=x< -4.8?-.04:.04;}
+cyl(.34,.42,.42,mat(0xc56c58),4.9,.22,.4);for(let i=0;i<7;i++){const leaf=sphere(4.9+Math.sin(i*2.4)*.32,.62+Math.cos(i*1.7)*.27,.4+Math.cos(i*2.1)*.12,.12,.38,.08,green);leaf.rotation.z=Math.sin(i*2.4)*.65;}
+box(1.7,.12,.35,wood,3.8,3.0,-2.28);for(let i=0;i<3;i++){box(.32,.42,.24,mat([0xe9b0ca,0x8bb9d8,0xe6d29a][i]),3.2+i*.55,3.27,-2.20);}
+\n// window with sky panes
 box(2.1,2.35,.12,cream,-3.5,4.1,-2.42);box(1.82,2.05,.06,blue,-3.5,4.1,-2.32);box(.09,2.1,.08,white,-3.5,4.1,-2.2);box(1.9,.09,.08,white,-3.5,4.1,-2.2);
 box(2.7,.18,1.25,mat(0xe5a26f),3.5,1.2,-1.45);box(2.7,.75,1.15,mat(0x43aa65),3.5,1.65,-1.65);box(.2,1.25,.2,wood,2.35,.6,-1.3);box(.2,1.25,.2,wood,4.65,.6,-1.3);
 box(1.4,1.35,.8,mat(0x54b8cb),-4.45,.68,-1.1);box(1.5,.18,.9,cream,-4.45,1.4,-1.1);
@@ -37,43 +47,75 @@ box(.9,.75,.7,wood,-4.5,.4,1.5);cyl(.34,.34,.06,gold,-4.5,.82,1.5);
 const lamp=cyl(.1,.1,.9,wood,4.8,.45,1.2);sphere(4.8,1.05,1.2,.38,.34,.38,mat(0xffd58d));
 // cat group
 const cat=new THREE.Group();scene.add(cat);cat.position.set(0,0,.2);
-const fur=mat(0xfff7ed,.68),furShade=mat(0xe5d6ca,.72),nose=mat(0xef91a9,.45),eye=mat(0x28202b,.22),iris=mat(0x77b6a0,.3),shirt=mat(0xf1a4c7,.65),bow=mat(0xd94872,.5),innerEar=mat(0xf2a5b6,.7),patch=mat(0xb98d76,.75),blush=mat(0xf5b3bc,.65);
-sphere(0,1.08,0,.62,.78,.48,fur,cat);sphere(0,1.08,.25,.4,.54,.25,shirt,cat);
-sphere(0,2.08,0,.72,.68,.62,fur,cat);
-// fluffy cheeks and face markings
-sphere(-.52,1.91,.31,.24,.24,.25,fur,cat);sphere(.52,1.91,.31,.24,.24,.25,fur,cat);
-sphere(-.35,2.43,.30,.25,.16,.10,patch,cat);sphere(.39,2.39,.32,.18,.12,.08,patch,cat);
-// softly rounded ears
-for(const x of [-.48,.48]){const ear=sphere(x,2.62,-.02,.25,.38,.19,fur,cat);ear.rotation.z=x<0?.32:-.32;const inner=sphere(x,2.65,.145,.135,.245,.045,innerEar,cat);inner.rotation.z=x<0?.32:-.32;}
-// expressive eyes with catchlights
-const eyeParts=[];for(const x of [-.27,.27]){const parts=[];parts.push(sphere(x,2.13,.55,.15,.205,.09,white,cat));parts.push(sphere(x,2.13,.625,.105,.16,.055,iris,cat));parts.push(sphere(x,2.12,.672,.058,.115,.028,eye,cat));parts.push(sphere(x-.035,2.19,.698,.035,.05,.018,white,cat));parts.push(sphere(x+.035,2.08,.697,.014,.02,.01,white,cat));const lid=sphere(x,2.13,.69,.15,.008,.025,furShade,cat);lid.visible=false;eyeParts.push({parts,lid});}
-// brows, muzzle, nose and smile
-for(const x of [-.27,.27]){const brow=sphere(x,2.39,.53,.15,.035,.025,furShade,cat);brow.rotation.z=x<0?.12:-.12;}
-sphere(-.12,1.91,.60,.19,.15,.14,white,cat);sphere(.12,1.91,.60,.19,.15,.14,white,cat);sphere(0,1.99,.73,.085,.06,.05,nose,cat);
-const mouthGroup=new THREE.Group();cat.add(mouthGroup);const mouthCavity=sphere(0,1.84,.735,.115,.095,.035,eye,mouthGroup);const tongue=sphere(0,1.80,.77,.055,.027,.018,nose,mouthGroup);mouthGroup.visible=false;
-const mouthSmile=new THREE.Group();cat.add(mouthSmile);const mouth1=new THREE.Mesh(new THREE.TorusGeometry(.095,.018,8,24,Math.PI),eye);mouth1.position.set(-.075,1.85,.72);mouth1.rotation.z=Math.PI;mouthSmile.add(mouth1);const mouth2=mouth1.clone();mouth2.position.x=.075;mouth2.rotation.z=0;mouthSmile.add(mouth2);
-const pawGroups=[];for(const side of [-1,1]){const pivot=new THREE.Group();pivot.position.set(side*.62,1.48,.05);cat.add(pivot);const arm=sphere(0,-.22,0,.18,.43,.19,fur,pivot);arm.rotation.z=side<0?-.35:.35;sphere(0,-.48,.11,.18,.16,.17,fur,pivot);pawGroups.push({side,pivot});}
+const fur=mat(0xfff7ed,.58),furShade=mat(0xd9c9bd,.72),nose=mat(0xee8da4,.38),eye=mat(0x201c27,.12),iris=mat(0x6eaa83,.22),innerEar=mat(0xeaa1ad,.7),patch=mat(0xc69b7c,.7),blush=mat(0xf1aab5,.75),pink=mat(0xe88cab,.5),gold=mat(0xd6a34d,.28),bow=mat(0xd94e82,.5),white=mat(0xffffff,.2);
+function ell(parent,x,y,z,sx,sy,sz,m){return sphere(x,y,z,sx,sy,sz,m,parent)}
+// A compact seated kitten: rounded haunches, chest, shoulders and a forward-facing head
+ell(cat,0,.93,-.05,.57,.67,.48,fur);ell(cat,0,1.28,.18,.43,.57,.39,fur);
+ell(cat,0,1.08,.40,.34,.48,.16,mat(0xfffdf7,.78));
+for(const side of [-1,1]){ell(cat,side*.34,.55,.13,.30,.43,.35,fur);ell(cat,side*.34,.20,.37,.26,.16,.34,furShade);}
+// head pivots separately for expressive motion
+const headGroup=new THREE.Group();headGroup.position.set(0,1.78,.05);cat.add(headGroup);
+ell(headGroup,0,.18,.02,.67,.65,.57,fur);
+ell(headGroup,-.48,-.02,.25,.25,.24,.22,fur);ell(headGroup,.48,-.02,.25,.25,.24,.22,fur);
+// forehead markings and soft cream muzzle
+ell(headGroup,-.30,.56,.25,.20,.12,.10,patch);ell(headGroup,.32,.54,.26,.16,.10,.08,patch);
+for(const side of [-1,1]){
+ const ear=ell(headGroup,side*.45,.76,-.03,.23,.36,.17,fur);ear.rotation.z=side*.32;
+ const inner=ell(headGroup,side*.45,.78,.105,.13,.24,.035,innerEar);inner.rotation.z=side*.32;
+}
+const eyeParts=[];
+for(const side of [-1,1]){
+ ell(headGroup,side*.255,.20,.50,.17,.205,.085,white);
+ ell(headGroup,side*.255,.20,.568,.115,.155,.052,iris);
+ ell(headGroup,side*.255,.19,.608,.064,.12,.027,eye);
+ ell(headGroup,side*.292,.265,.631,.036,.048,.016,white);
+ ell(headGroup,side*.22,.14,.632,.014,.022,.009,white);
+ const lid=ell(headGroup,side*.255,.20,.625,.17,.008,.024,furShade);lid.visible=false;
+ eyeParts.push({parts:[],lid});
+}
+for(const side of [-1,1]){const brow=ell(headGroup,side*.26,.46,.48,.14,.025,.02,furShade);brow.rotation.z=side*.08;ell(headGroup,side*.43,-.07,.47,.11,.065,.025,blush);}
+ell(headGroup,-.12,-.10,.51,.18,.13,.13,white);ell(headGroup,.12,-.10,.51,.18,.13,.13,white);
+ell(headGroup,0,-.005,.645,.078,.055,.045,nose);
+const mouthGroup=new THREE.Group();headGroup.add(mouthGroup);ell(mouthGroup,0,-.22,.65,.105,.10,.035,eye);ell(mouthGroup,0,-.275,.68,.052,.028,.015,pink);mouthGroup.visible=false;
+const mouthSmile=new THREE.Group();headGroup.add(mouthSmile);
+const smileL=new THREE.Mesh(new THREE.TorusGeometry(.09,.014,8,24,Math.PI),eye);smileL.position.set(-.07,-.20,.65);smileL.rotation.z=Math.PI;mouthSmile.add(smileL);const smileR=smileL.clone();smileR.position.x=.07;smileR.rotation.z=0;mouthSmile.add(smileR);
+// fine whiskers
+for(const side of [-1,1])for(let j=0;j<3;j++){const pts=[new THREE.Vector3(side*.18,-.11-j*.045,.64),new THREE.Vector3(side*.43,-.09-j*.055,.60),new THREE.Vector3(side*(.72+j*.02),-.04-j*.11,.47)];headGroup.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),16,.006,5,false),furShade));}
+// articulated front legs and soft paw pads
+const pawGroups=[];
+for(const side of [-1,1]){
+ const pivot=new THREE.Group();pivot.position.set(side*.23,1.02,.35);cat.add(pivot);
+ ell(pivot,0,-.34,.02,.145,.39,.16,fur);ell(pivot,0,-.68,.13,.19,.13,.23,fur);
+ for(let k=-1;k<=1;k++)ell(pivot,k*.075,-.72,.32,.035,.027,.012,furShade);
+ const pad=ell(pivot,0,-.69,.34,.075,.06,.018,pink);pad.visible=false;
+ pawGroups.push({side,pivot,pad});
+}
+// flexible tail made of linked segments so the motion is visible
+const tailParts=[];let tailParent=cat;
+for(let i=0;i<7;i++){const seg=ell(tailParent,.42+i*.075,.83+i*.105,-.32,.12,.20,.12,fur);seg.rotation.z=-.48;tailParts.push(seg);}
+// subtle fur tufts on silhouette and cheeks
+const tuftGeo=new THREE.ConeGeometry(.035,.13,5);const tuftMat=fur;
+for(let i=0;i<190;i++){const u=(i*2.399963)% (Math.PI*2),v=Math.acos(1-2*((i+.5)/190));const x=.55*Math.sin(v)*Math.cos(u),y=.93+.65*Math.cos(v),z=-.05+.46*Math.sin(v)*Math.sin(u);const tuft=new THREE.Mesh(tuftGeo,tuftMat);tuft.position.set(x,y,z);tuft.rotation.set(v*.35,0,-Math.cos(u)*.45);tuft.scale.set(.7,.75,.7);cat.add(tuft);}
+for(let i=0;i<90;i++){const u=i*2.399963,v=Math.acos(1-2*((i+.5)/90));const x=.66*Math.sin(v)*Math.cos(u),y=1.96+.64*Math.cos(v),z=.05+.55*Math.sin(v)*Math.sin(u);const tuft=new THREE.Mesh(tuftGeo,fur);tuft.position.set(x,y,z);tuft.rotation.set(v*.3,0,-Math.cos(u)*.4);tuft.scale.set(.65,.7,.65);headGroup.add(tuft);}
+const collar=new THREE.Mesh(new THREE.TorusGeometry(.36,.055,12,48),pink);collar.position.set(0,1.43,.26);collar.rotation.x=1.16;cat.add(collar);ell(cat,0,1.31,.61,.07,.08,.055,gold);
+const bowL=ell(cat,-.16,1.42,.62,.13,.09,.06,bow),bowR=ell(cat,.16,1.42,.62,.13,.09,.06,bow);ell(cat,0,1.42,.68,.055,.055,.045,gold);
 const accessoryGroup=new THREE.Group();cat.add(accessoryGroup);
 function clearAccessories(){while(accessoryGroup.children.length){const o=accessoryGroup.children.pop();if(o.geometry)o.geometry.dispose();}}
-function applyAccessories(equipped={}){clearAccessories();if(equipped.accessory==='royal_crown'){const crown=new THREE.Mesh(new THREE.CylinderGeometry(.22,.3,.22,5),gold);crown.position.set(0,2.75,.08);accessoryGroup.add(crown);for(let i=0;i<3;i++){const tip=new THREE.Mesh(new THREE.SphereGeometry(.06,12,10),gold);tip.position.set(-.18+i*.18,2.9,.08);accessoryGroup.add(tip)}}if(equipped.accessory==='pink_collar'||equipped.accessory==='star_bow'){const b1=sphere(-.14,1.53,.64,.13,.09,.06,bow,accessoryGroup);const b2=sphere(.14,1.53,.64,.13,.09,.06,bow,accessoryGroup);sphere(0,1.53,.69,.06,.06,.05,gold,accessoryGroup)}if(equipped.glasses==='heart_glasses'){for(const x of [-.25,.25]){const ring=new THREE.Mesh(new THREE.TorusGeometry(.13,.025,8,20),bow);ring.position.set(x,2.13,.70);accessoryGroup.add(ring)}}if(equipped.neck==='pink_scarf'){const scarf=new THREE.Mesh(new THREE.TorusGeometry(.34,.08,10,32),bow);scarf.position.set(0,1.57,.12);scarf.rotation.x=1.15;accessoryGroup.add(scarf)}if(equipped.back==='angel_wings'){for(const side of [-1,1]){const wing=sphere(side*.58,1.5,-.22,.28,.42,.12,white,accessoryGroup);wing.rotation.z=side*.45}}}
-for(const x of [-.48,.48]){sphere(x,1.88,.53,.12,.07,.025,blush,cat);}
-// whiskers as delicate curves
-for(const side of [-1,1])for(let j=0;j<3;j++){const pts=[new THREE.Vector3(side*.23,1.9-j*.055,.69),new THREE.Vector3(side*.48,1.91-j*.07,.66),new THREE.Vector3(side*(.72+j*.025),1.95-j*.12,.55)];const whisk=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),12,.008,5,false),furShade);cat.add(whisk);}
-// rounded legs and little paws with toe details
-const legs=[];for(const x of [-.38,.38]){const leg=sphere(x,.48,.04,.19,.48,.2,fur,cat);legs.push(leg);sphere(x,.14,.19,.24,.15,.31,fur,cat);for(let k=-1;k<=1;k++)sphere(x+k*.075,.105,.455,.018,.025,.012,furShade,cat);}
-const tailCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(.48,.72,-.22),new THREE.Vector3(.88,.76,-.3),new THREE.Vector3(1.18,1.03,-.3),new THREE.Vector3(1.14,1.42,-.28),new THREE.Vector3(.85,1.56,-.25)]);const tail=new THREE.Mesh(new THREE.TubeGeometry(tailCurve,40,.13,16,false),fur);tail.castShadow=true;cat.add(tail);sphere(.85,1.56,-.25,.13,.13,.13,fur,cat);
-// decorative collar and tiny bell
-const collar=new THREE.Mesh(new THREE.TorusGeometry(.34,.055,12,40),shirt);collar.position.set(0,1.58,.16);collar.rotation.x=1.15;cat.add(collar);sphere(0,1.48,.52,.075,.085,.06,gold,cat);
-sphere(-.18,1.53,.55,.13,.09,.06,bow,cat);sphere(.18,1.53,.55,.13,.09,.06,bow,cat);sphere(0,1.53,.61,.06,.06,.05,gold,cat);
+function applyAccessories(equipped={}){clearAccessories();if(equipped.accessory==='royal_crown'){const crown=new THREE.Mesh(new THREE.CylinderGeometry(.22,.3,.22,5),gold);crown.position.set(0,2.67,.08);accessoryGroup.add(crown);for(let i=0;i<3;i++){const tip=new THREE.Mesh(new THREE.SphereGeometry(.06,12,10),gold);tip.position.set(-.18+i*.18,2.81,.08);accessoryGroup.add(tip)}}if(equipped.accessory==='pink_collar'||equipped.accessory==='star_bow'){ell(accessoryGroup,-.15,1.42,.68,.14,.09,.06,bow);ell(accessoryGroup,.15,1.42,.68,.14,.09,.06,bow);ell(accessoryGroup,0,1.42,.72,.06,.06,.05,gold)}if(equipped.glasses==='heart_glasses'){for(const x of [-.25,.25]){const ring=new THREE.Mesh(new THREE.TorusGeometry(.13,.025,8,20),bow);ring.position.set(x,1.98,.61);accessoryGroup.add(ring)}}if(equipped.neck==='pink_scarf'){const scarf=new THREE.Mesh(new THREE.TorusGeometry(.36,.08,10,32),bow);scarf.position.set(0,1.42,.22);scarf.rotation.x=1.15;accessoryGroup.add(scarf)}if(equipped.back==='angel_wings'){for(const side of [-1,1]){const wing=ell(accessoryGroup,side*.52,1.24,-.32,.28,.38,.12,white);wing.rotation.z=side*.45}}}
 // floor shadow / interaction
 const hit=new THREE.Mesh(new THREE.CircleGeometry(1.1,32),new THREE.MeshBasicMaterial({color:0x5b4751,transparent:true,opacity:.13}));hit.rotation.x=-Math.PI/2;hit.position.set(0,.01,.2);scene.add(hit);
 let actionState='idle',actionUntil=0,blinkAt=0,blinkEnd=0;const clock=new THREE.Clock();
 function resize(){const w=root.clientWidth,h=root.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false)}addEventListener('resize',resize);resize();
-function animate(){requestAnimationFrame(animate);const t=clock.getElapsedTime();cat.position.y=actionState==='sleep'?-.04+Math.sin(t*2)*.025:Math.sin(t*2.1)*.035;cat.rotation.y=Math.sin(t*.55)*.08;tail.rotation.x=Math.sin(t*2.5)*.16;
-if(actionState!=='sleep'&&actionState!=='idle'&&t>actionUntil)actionState='idle';if(actionState==='play'){cat.position.y+=Math.abs(Math.sin(t*9))*.22;cat.rotation.z=Math.sin(t*9)*.08;pawGroups.forEach(p=>p.pivot.rotation.x=Math.sin(t*11)*.8)}else if(actionState==='swat'){cat.rotation.y=Math.sin(t*14)*.22;pawGroups.forEach(p=>p.pivot.rotation.z=(p.side<0?1:-1)*Math.max(0,Math.sin(t*15))*1.8)}else if(actionState==='sleep'){cat.rotation.x=.08;cat.scale.y=.96;pawGroups.forEach(p=>p.pivot.rotation.x=0)}else{cat.rotation.x=0;cat.scale.y=1;pawGroups.forEach(p=>p.pivot.rotation.set(0,0,0))}
+function animate(){requestAnimationFrame(animate);const t=clock.getElapsedTime();cat.position.y=actionState==='sleep'?-.055+Math.sin(t*1.7)*.018:Math.sin(t*2.0)*.018;cat.rotation.y=Math.sin(t*.42)*.045;tailParts.forEach((seg,i)=>{seg.rotation.z=-.55+Math.sin(t*2.3-i*.45)*.12;seg.rotation.x=Math.sin(t*1.8-i*.38)*.12});
+if(actionState!=='sleep'&&actionState!=='idle'&&t>actionUntil)actionState='idle';
+headGroup.rotation.x=actionState==='eat'?Math.sin(t*13)*.12:actionState==='meow'?-.08:0;headGroup.rotation.z=actionState==='pet'?Math.sin(t*8)*.08:0;
+if(actionState==='play'){cat.position.y+=Math.abs(Math.sin(t*7))*.13;cat.rotation.z=Math.sin(t*7)*.045;pawGroups.forEach(p=>p.pivot.rotation.x=Math.sin(t*10+(p.side>0?Math.PI:0))*.48)}
+else if(actionState==='swat'){cat.rotation.y=Math.sin(t*14)*.18;pawGroups.forEach(p=>{p.pivot.rotation.z=(p.side<0?1:-1)*Math.max(0,Math.sin(t*14))*1.45;p.pad.visible=Math.sin(t*14)>.5})}
+else if(actionState==='sleep'){cat.rotation.x=.04;pawGroups.forEach(p=>p.pivot.rotation.set(.08,0,0))}
+else{cat.rotation.x=0;pawGroups.forEach(p=>{p.pivot.rotation.set(0,0,0);p.pad.visible=false})}
 if(actionState==='eat'||actionState==='pet'||actionState==='meow'){mouthGroup.visible=Math.sin(t*12)>-.15;mouthSmile.visible=!mouthGroup.visible}else{mouthGroup.visible=false;mouthSmile.visible=true}
-if(t>blinkEnd&&t>blinkAt){blinkEnd=t+.13;blinkAt=t+2.5+Math.random()*2;eyeParts.forEach(e=>{e.parts.forEach(p=>p.visible=false);e.lid.visible=true})}if(t>blinkEnd){eyeParts.forEach(e=>{e.parts.forEach(p=>p.visible=true);e.lid.visible=false})}
-tail.rotation.x=Math.sin(t*2.5)*.16;renderer.render(scene,camera)}animate();
+if(t>blinkEnd&&t>blinkAt){blinkEnd=t+.14;blinkAt=t+2.2+Math.random()*2.4;eyeParts.forEach(e=>{e.lid.visible=true})}if(t>blinkEnd)eyeParts.forEach(e=>{e.lid.visible=false});
+renderer.render(scene,camera)}animate();
 let state={hunger:80,energy:80,cleanliness:80,happiness:80,coins:120,xp:0,level:1};let shopData={items:[],inventory:[],equipped:{},foodStock:{}};let currentShop='food';const labels={hunger:'СЫТОСТЬ',energy:'ЭНЕРГИЯ',cleanliness:'ЧИСТОТА',happiness:'РАДОСТЬ'};const $=id=>document.getElementById(id);
 function render(){ $('coins').textContent=state.coins??0;$('level').textContent=state.level??1;$('meters').innerHTML=Object.entries(labels).map(([k,v])=>'<div class="meter">'+v+'<b>'+(state[k]??0)+'%</b><i><em style="width:'+Math.max(0,Math.min(100,state[k]??0))+'%"></em></i></div>').join('');}
 async function api(path,body){const r=await fetch(path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},body:body?JSON.stringify(body):undefined});const d=await r.json();if(!r.ok)throw Error(d.error||'Ошибка');return d}
