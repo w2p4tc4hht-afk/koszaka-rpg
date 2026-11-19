@@ -81,6 +81,32 @@ app.post('/api/action',auth,async(req,res)=>{
   } catch(e){await client.query('ROLLBACK');console.error(e);res.status(500).json({error:'Не удалось выполнить действие'});}
   finally{client.release();}
 });
+app.post('/api/daily',auth,async(req,res)=>{
+  if(!pool) return res.status(503).json({error:'DATABASE_URL ещё не настроен.'});
+  const client=await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let {rows}=await client.query('SELECT * FROM players WHERE telegram_id=$1 FOR UPDATE',[String(req.tgUser.id)]);
+    if(!rows.length) {
+      await client.query('INSERT INTO players(telegram_id,username) VALUES($1,$2)',[String(req.tgUser.id),req.tgUser.username||null]);
+      ({rows}=await client.query('SELECT * FROM players WHERE telegram_id=$1 FOR UPDATE',[String(req.tgUser.id)]));
+    }
+    const p=rows[0];
+    const today=new Date().toISOString().slice(0,10);
+    if(p.last_daily_reward && new Date(p.last_daily_reward).toISOString().slice(0,10)===today) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'Награда уже получена. Возвращайся завтра!'});
+    }
+    const updated=await client.query(
+      `UPDATE players SET coins=coins+50,xp=xp+15,last_daily_reward=CURRENT_DATE,updated_at=NOW()
+       WHERE telegram_id=$1 RETURNING *`,[String(req.tgUser.id)]);
+    await client.query('COMMIT');
+    res.json(updated.rows[0]);
+  } catch(e) {
+    await client.query('ROLLBACK'); console.error(e);
+    res.status(500).json({error:'Не удалось получить награду'});
+  } finally { client.release(); }
+});
 app.post('/api/stars/invoice',auth,async(req,res)=>{
   res.status(501).json({error:'Платежи Stars подключаются после настройки BOT_TOKEN и Telegram webhook.'});
 });
@@ -126,7 +152,7 @@ async function start() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS actions (
+    await pool.query('ALTER TABLE players ADD COLUMN IF NOT EXISTS last_daily_reward DATE');\n    await pool.query(`CREATE TABLE IF NOT EXISTS actions (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES players(telegram_id),
       action TEXT NOT NULL,
