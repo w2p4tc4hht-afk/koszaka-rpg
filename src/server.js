@@ -77,7 +77,8 @@ app.post(telegramWebhookPath(), async (req,res) => {
     console.error('Telegram update handler failed:',error.message);
   }
 });
-\napp.get('/api/health',(_,res)=>res.json({ok:true,service:'KOSZAKA RPG'}));
+
+app.get('/api/health',(_,res)=>res.json({ok:true,service:'KOSZAKA RPG'}));
 
 const shopItems=[
  {id:'pink_collar',category:'clothes',name:'Розовый ошейник',emoji:'🎀',slot:'accessory',price:60},
